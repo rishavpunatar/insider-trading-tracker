@@ -61,19 +61,17 @@ Build a private tracker that watches OpenInsider's latest insider purchases page
 
 - A background dispatcher scans for due snapshots.
 - When a snapshot becomes due:
-  - fetch quote data from Twelve Data
-  - fetch quote data from Financial Modeling Prep
-  - store each observation independently
-- A snapshot is `confirmed` only when:
-  - both providers returned quotes
-  - both quotes are fresh enough for the target
-  - the prices agree within the configured threshold
+  - fetch the first available Yahoo Finance 1-minute bar at or after the target timestamp
+  - store the observation independently
+- A snapshot is `confirmed` when:
+  - Yahoo Finance returned a usable bar
+  - the selected bar timestamp is at or after the target
 
-### 6. Freshness Logic
+### 6. Backfill Logic
 
-- Quote freshness is based on provider timestamps, not fetch time alone.
-- If a target lands during a closed period, providers may return older quotes.
-- In that case the snapshot stays `waiting_for_fresh_quote` and is retried until a fresh quote appears.
+- Quote selection is based on historical minute bars, not the wall-clock fetch time.
+- If a target lands during a closed period, the tracker chooses the first minute bar at or after the target.
+- If Yahoo Finance has not yet published a qualifying bar, the snapshot stays `waiting_for_source_bar` and is retried.
 
 ### 7. Persistence
 
@@ -87,13 +85,13 @@ Build a private tracker that watches OpenInsider's latest insider purchases page
   - filing summary cards
   - tracked filings table
   - snapshot states
-  - dispute visibility
+  - failed snapshot visibility
   - manual refresh controls
 - Detail view per filing with:
   - OpenInsider row
   - SEC verification details
   - scheduled targets
-  - provider-by-provider quote observations
+  - quote observations
 
 ## Red-Team Review
 
@@ -112,20 +110,20 @@ Build a private tracker that watches OpenInsider's latest insider purchases page
   - define `site_seen` as the first time this app observed the row
   - expose that approximation clearly in UI and docs
 
-### Risk: Free-Tier Quote Limits
+### Risk: Free Unofficial Quote Source
 
-- Impact: delayed or incomplete corroboration when many filings arrive.
+- Impact: Yahoo Finance can change behavior, throttle requests, or provide incomplete extended-hours coverage.
 - Mitigation:
   - event-driven capture instead of continuous polling by symbol
   - provider-specific error storage
-  - explicit `pending_secondary` and `failed` states
+  - explicit `waiting_for_source_bar` and `failed` states
 
 ### Risk: After-Hours And Closed-Market Targets
 
-- Impact: stale quotes can look like valid target prices.
+- Impact: some targets may not have a minute bar exactly at the requested time.
 - Mitigation:
-  - require provider timestamp freshness relative to the target
-  - retry until a fresh quote appears
+  - select the first available minute bar at or after the target
+  - retry if no qualifying bar exists yet
   - store `captured_at` and provider quote timestamps separately
 
 ### Risk: Security Classification Ambiguity
@@ -152,7 +150,7 @@ Best approach for this build:
 - background worker threads inside the app process
 - OpenInsider discovery adapter
 - SEC verification adapter
-- Two quote-provider adapters
+- One zero-cost quote adapter backed by Yahoo Finance
 - NYSE trading calendar scheduling
 
 This choice is better than a static site or serverless deployment because the product's core requirement is durable scheduled work tied to live page updates.

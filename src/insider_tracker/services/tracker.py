@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -9,7 +8,7 @@ import logging
 import threading
 from typing import Any
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from insider_tracker.config import Settings
@@ -17,10 +16,9 @@ from insider_tracker.models import InsiderFiling, QuoteObservation, SnapshotTarg
 from insider_tracker.services.market_calendar import MarketCalendarService
 from insider_tracker.services.openinsider import OpenInsiderClient, OpenInsiderRow
 from insider_tracker.services.quotes import (
-    FinancialModelingPrepProvider,
     QuoteSample,
-    TwelveDataProvider,
-    classify_snapshot,
+    YahooFinanceProvider,
+    classify_single_source_snapshot,
 )
 from insider_tracker.services.reference_data import SecurityReferenceService
 from insider_tracker.services.sec import SecClient
@@ -28,8 +26,8 @@ from insider_tracker.services.sec import SecClient
 
 logger = logging.getLogger(__name__)
 UTC = timezone.utc
-TERMINAL_SNAPSHOT_STATES = {"confirmed", "disputed", "failed", "skipped"}
-ACTIVE_SNAPSHOT_STATES = {"pending", "waiting_for_fresh_quote", "pending_secondary"}
+TERMINAL_SNAPSHOT_STATES = {"confirmed", "failed", "skipped"}
+ACTIVE_SNAPSHOT_STATES = {"pending", "waiting_for_source_bar"}
 
 
 @dataclass
@@ -44,7 +42,6 @@ class DiscoveryResult:
 class SnapshotRunResult:
     processed: int
     confirmed: int
-    disputed: int
     pending: int
     failed: int
 
@@ -61,8 +58,7 @@ class TrackerService:
             user_agent=settings.http_user_agent,
             twelvedata_api_key=settings.twelvedata_api_key,
         )
-        self.primary_quote_provider = TwelveDataProvider(api_key=settings.twelvedata_api_key)
-        self.secondary_quote_provider = FinancialModelingPrepProvider(api_key=settings.fmp_api_key)
+        self.quote_provider = YahooFinanceProvider(cache_dir=settings.cache_dir)
 
     def run_discovery_cycle(self) -> DiscoveryResult:
         rows = self.openinsider_client.fetch_latest_rows(max_rows=self.settings.max_discovery_rows)
@@ -97,7 +93,7 @@ class TrackerService:
 
     def process_due_snapshots(self) -> SnapshotRunResult:
         now = utcnow()
-        result = SnapshotRunResult(processed=0, confirmed=0, disputed=0, pending=0, failed=0)
+        result = SnapshotRunResult(processed=0, confirmed=0, pending=0, failed=0)
 
         with self.session_factory() as session:
             due_snapshots = session.scalars(
@@ -113,24 +109,17 @@ class TrackerService:
 
             for snapshot in due_snapshots:
                 result.processed += 1
-                primary = self.primary_quote_provider.fetch_quote(snapshot.filing.symbol)
-                secondary = self.secondary_quote_provider.fetch_quote(snapshot.filing.symbol)
-                self._store_observation(session, snapshot, primary)
-                self._store_observation(session, snapshot, secondary)
+                target_at = _ensure_aware(snapshot.target_at)
+                sample = self.quote_provider.fetch_quote_at(snapshot.filing.symbol, target_at)
+                self._store_observation(session, snapshot, sample)
 
                 snapshot.attempts += 1
                 snapshot.last_attempted_at = now
-                target_at = _ensure_aware(snapshot.target_at)
-                status, consensus, effective_at, note = classify_snapshot(
-                    primary,
-                    secondary,
-                    target_at,
-                    self.settings.quote_dispute_threshold_pct,
-                )
+                status, consensus, effective_at, note = classify_single_source_snapshot(sample, target_at)
 
-                if status in {"waiting_for_fresh_quote", "pending_secondary"} and now - target_at > timedelta(hours=24):
+                if status == "waiting_for_source_bar" and now - target_at > timedelta(hours=24):
                     status = "failed"
-                    note = "Snapshot timed out before both fresh quotes were available"
+                    note = "Snapshot timed out before Yahoo Finance published a usable 1-minute bar"
 
                 snapshot.status = status
                 snapshot.notes = note
@@ -143,8 +132,6 @@ class TrackerService:
 
                 if status == "confirmed":
                     result.confirmed += 1
-                elif status == "disputed":
-                    result.disputed += 1
                 elif status == "failed":
                     result.failed += 1
                 else:
@@ -185,8 +172,8 @@ class TrackerService:
                     select(func.count()).select_from(SnapshotTarget).where(SnapshotTarget.status.in_(ACTIVE_SNAPSHOT_STATES))
                 )
                 or 0,
-                "disputed_snapshots": session.scalar(
-                    select(func.count()).select_from(SnapshotTarget).where(SnapshotTarget.status == "disputed")
+                "failed_snapshots": session.scalar(
+                    select(func.count()).select_from(SnapshotTarget).where(SnapshotTarget.status == "failed")
                 )
                 or 0,
             }

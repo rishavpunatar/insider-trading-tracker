@@ -21,12 +21,6 @@ def _to_int(name: str, default: int) -> int:
     value = os.getenv(name)
     return int(value) if value else default
 
-
-def _to_float(name: str, default: float) -> float:
-    value = os.getenv(name)
-    return float(value) if value else default
-
-
 @dataclass(frozen=True)
 class Settings:
     app_env: str
@@ -38,7 +32,6 @@ class Settings:
     due_snapshot_poll_seconds: int
     quote_retry_seconds: int
     max_discovery_rows: int
-    quote_dispute_threshold_pct: float
     twelvedata_api_key: str | None
     fmp_api_key: str | None
     project_root: Path
@@ -73,7 +66,6 @@ def load_settings() -> Settings:
         due_snapshot_poll_seconds=_to_int("DUE_SNAPSHOT_POLL_SECONDS", 30),
         quote_retry_seconds=_to_int("QUOTE_RETRY_SECONDS", 300),
         max_discovery_rows=_to_int("MAX_DISCOVERY_ROWS", 100),
-        quote_dispute_threshold_pct=_to_float("QUOTE_DISPUTE_THRESHOLD_PCT", 0.75),
         twelvedata_api_key=os.getenv("TWELVEDATA_API_KEY") or None,
         fmp_api_key=os.getenv("FMP_API_KEY") or None,
         project_root=project_root,

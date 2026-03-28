@@ -21,14 +21,17 @@
       <strong>{{ summary.pending_snapshots }}</strong>
     </article>
     <article class="summary-card">
-      <span>Disputed snapshots</span>
-      <strong>{{ summary.disputed_snapshots }}</strong>
+      <span>Failed snapshots</span>
+      <strong>{{ summary.failed_snapshots }}</strong>
     </article>
   </section>
 
   <section class="note">
     <p>
       `site_seen` is the first time this app observed the OpenInsider row. It is not a historical timestamp published by OpenInsider itself.
+    </p>
+    <p>
+      Snapshot prices are single-source and come from Yahoo Finance 1-minute bars, using the first available bar at or after each target time.
     </p>
   </section>
 
@@ -70,4 +73,3 @@
     </table>
   </section>
 {% endblock %}
-

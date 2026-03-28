@@ -1,81 +1,74 @@
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
-from insider_tracker.services.quotes import QuoteSample, classify_snapshot
+from insider_tracker.services.quotes import QuoteSample, classify_single_source_snapshot
 
 
-def test_confirmed_when_both_quotes_are_fresh_and_close():
+def test_confirmed_when_single_source_quote_is_at_or_after_target():
     target_at = datetime.now(timezone.utc)
-    primary = QuoteSample(
-        provider="a",
+    sample = QuoteSample(
+        provider="yfinance",
         status="ok",
         symbol="AAPL",
         fetched_at=target_at,
         price=Decimal("100"),
         quote_timestamp=target_at + timedelta(minutes=1),
     )
-    secondary = QuoteSample(
-        provider="b",
-        status="ok",
-        symbol="AAPL",
-        fetched_at=target_at,
-        price=Decimal("100.3"),
-        quote_timestamp=target_at + timedelta(minutes=1),
-    )
 
-    status, consensus, effective_at, note = classify_snapshot(primary, secondary, target_at, threshold_pct=0.75)
+    status, consensus, effective_at, note = classify_single_source_snapshot(sample, target_at)
 
     assert status == "confirmed"
-    assert consensus == Decimal("100.15")
+    assert consensus == Decimal("100")
     assert effective_at == target_at + timedelta(minutes=1)
-    assert note is None
+    assert "Single-source quote" in note
 
 
-def test_disputed_when_prices_diverge():
+def test_waiting_when_quote_bar_is_still_before_target():
     target_at = datetime.now(timezone.utc)
-    primary = QuoteSample(
-        provider="a",
+    sample = QuoteSample(
+        provider="yfinance",
         status="ok",
         symbol="AAPL",
         fetched_at=target_at,
         price=Decimal("100"),
-        quote_timestamp=target_at + timedelta(minutes=1),
-    )
-    secondary = QuoteSample(
-        provider="b",
-        status="ok",
-        symbol="AAPL",
-        fetched_at=target_at,
-        price=Decimal("105"),
-        quote_timestamp=target_at + timedelta(minutes=1),
+        quote_timestamp=target_at - timedelta(minutes=1),
     )
 
-    status, consensus, _, note = classify_snapshot(primary, secondary, target_at, threshold_pct=0.75)
+    status, consensus, effective_at, note = classify_single_source_snapshot(sample, target_at)
 
-    assert status == "disputed"
+    assert status == "waiting_for_source_bar"
     assert consensus is None
-    assert "exceeded threshold" in note
+    assert effective_at is None
+    assert "qualifying bar" in note
 
 
-def test_waiting_for_fresh_quote_when_only_stale_data_exists():
+def test_waiting_when_source_has_not_published_bar_yet():
     target_at = datetime.now(timezone.utc)
-    primary = QuoteSample(
-        provider="a",
-        status="ok",
+    sample = QuoteSample(
+        provider="yfinance",
+        status="waiting_for_source_bar",
         symbol="AAPL",
         fetched_at=target_at,
-        price=Decimal("100"),
-        quote_timestamp=target_at - timedelta(minutes=10),
+        error="No 1-minute bar exists at or after the target time yet",
     )
-    secondary = QuoteSample(
-        provider="b",
+
+    status, _, _, note = classify_single_source_snapshot(sample, target_at)
+
+    assert status == "waiting_for_source_bar"
+    assert "No 1-minute bar" in note
+
+
+def test_failed_on_non_retriable_provider_status():
+    target_at = datetime.now(timezone.utc)
+    sample = QuoteSample(
+        provider="yfinance",
         status="provider_error",
         symbol="AAPL",
         fetched_at=target_at,
-        error="down",
+        error="Bad payload",
     )
 
-    status, _, _, _ = classify_snapshot(primary, secondary, target_at, threshold_pct=0.75)
+    status, _, _, note = classify_single_source_snapshot(sample, target_at)
 
-    assert status == "waiting_for_fresh_quote"
-
+    assert status == "failed"
+    assert note == "Bad payload"

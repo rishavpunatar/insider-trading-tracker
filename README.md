@@ -16,28 +16,24 @@ Private web app that monitors OpenInsider's latest insider purchases feed, recor
   - +30 minutes
   - +3 hours
   - +1, +2, +3, +4, +5 U.S. trading days
-- Fetches quotes from two providers and marks each snapshot as:
+- Fetches quotes from Yahoo Finance minute bars and marks each snapshot as:
   - `confirmed`
-  - `pending_secondary`
-  - `waiting_for_fresh_quote`
-  - `disputed`
+  - `waiting_for_source_bar`
   - `failed`
 - Stops scheduling after the fifth trading day but retains all stored history
 
 ## Important Constraints
 
 - "Price when it was posted on the site itself" is approximated as the first time this app sees the row.
-- If the app is offline when a snapshot becomes due, it will capture the next fresh quote it can get. It does not fabricate historical intraday prices.
-- Free quote providers can rate-limit you. The app exposes those states instead of pretending the data is complete.
-- The app is intended for private/internal use with your own API keys.
+- Prices are sourced from Yahoo Finance 1-minute bars through `yfinance`, using the first available bar at or after each target timestamp.
+- If the app is offline when a snapshot becomes due, it can still backfill recent target times from historical minute bars instead of relying on a live quote exactly at that moment.
+- This is a zero-cost private setup. It does not require quote API keys.
 
 ## Data Providers
 
 - Discovery source: OpenInsider
 - Filing verification: SEC EDGAR ownership XML
-- Quote providers:
-  - Twelve Data
-  - Financial Modeling Prep
+- Quote source: Yahoo Finance minute bars via `yfinance`
 
 ## Quick Start
 
@@ -49,7 +45,7 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-2. Copy the environment file and add your API keys:
+2. Copy the environment file and set your SEC user agent:
 
 ```bash
 cp .env.example .env
@@ -73,13 +69,16 @@ Included deployment files:
 - `railway.toml` for Railway config-as-code
 - `Dockerfile` for generic container hosts
 
-Required production environment variables:
+Required environment variable:
 
 - `HTTP_USER_AGENT`
-- `TWELVEDATA_API_KEY`
-- `FMP_API_KEY`
 
-The app can run without quote API keys, but scheduled snapshots will remain unconfirmed.
+Optional:
+
+- `TWELVEDATA_API_KEY` for stronger security-type classification only
+- `FMP_API_KEY` if you later want to add a second quote source back
+
+If you want a truly zero-cost setup, run it locally on your own machine. Free app hosting tiers generally sleep or expire, which breaks continuous monitoring.
 
 ## Manual Controls
 

@@ -10,6 +10,6 @@ dist/
 *.pyd
 *.sqlite3
 *.db
+*.egg-info/
 data/
 .env
-
