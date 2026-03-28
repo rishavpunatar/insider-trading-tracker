@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}{{ filing.symbol }} | Insider Trading Tracker{% endblock %}
+
+{% block content %}
+  <section class="detail-grid">
+    <article class="panel">
+      <h2>{{ filing.symbol }} · {{ filing.company_name }}</h2>
+      <dl class="detail-list">
+        <div><dt>Insider</dt><dd>{{ filing.insider_name }}{% if filing.insider_title %} · {{ filing.insider_title }}{% endif %}</dd></div>
+        <div><dt>Trade Type</dt><dd>{{ filing.trade_type }}</dd></div>
+        <div><dt>Trade Price</dt><dd>{{ filing.transaction_price or "n/a" }}</dd></div>
+        <div><dt>Quantity</dt><dd>{{ filing.quantity or "n/a" }}</dd></div>
+        <div><dt>Trade Date</dt><dd>{{ filing.trade_date or "n/a" }}</dd></div>
+        <div><dt>Filing Datetime</dt><dd>{{ filing.filing_datetime or "n/a" }}</dd></div>
+        <div><dt>First Seen</dt><dd>{{ filing.first_seen_at }}</dd></div>
+        <div><dt>Tracking Status</dt><dd>{{ filing.tracking_status }}</dd></div>
+        <div><dt>SEC Verification</dt><dd>{{ filing.sec_verification_status }}</dd></div>
+        <div><dt>SEC Filing</dt><dd><a href="{{ filing.sec_filing_url }}" target="_blank" rel="noreferrer">Open SEC XML</a></dd></div>
+      </dl>
+    </article>
+
+    <article class="panel">
+      <h2>Eligibility</h2>
+      {% if filing.security %}
+        <dl class="detail-list">
+          <div><dt>Exchange</dt><dd>{{ filing.security.exchange or "n/a" }}</dd></div>
+          <div><dt>Instrument Type</dt><dd>{{ filing.security.instrument_type or "n/a" }}</dd></div>
+          <div><dt>Status</dt><dd>{{ filing.security.eligibility_status }}</dd></div>
+          <div><dt>Reason</dt><dd>{{ filing.security.eligibility_reason }}</dd></div>
+        </dl>
+      {% else %}
+        <p>No security metadata cached.</p>
+      {% endif %}
+    </article>
+  </section>
+
+  <section class="panel">
+    <h2>SEC Verification Detail</h2>
+    <pre>{{ filing.sec_verification_details | tojson(indent=2) }}</pre>
+  </section>
+
+  <section class="panel">
+    <h2>Snapshots</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Label</th>
+          <th>Target At</th>
+          <th>Status</th>
+          <th>Attempts</th>
+          <th>Consensus Price</th>
+          <th>Effective Quote At</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for snapshot in filing.snapshots %}
+          <tr>
+            <td>{{ snapshot.label }}</td>
+            <td>{{ snapshot.target_at }}</td>
+            <td><span class="pill">{{ snapshot.status }}</span></td>
+            <td>{{ snapshot.attempts }}</td>
+            <td>{{ snapshot.consensus_price or "n/a" }}</td>
+            <td>{{ snapshot.effective_quote_at or "n/a" }}</td>
+            <td>{{ snapshot.notes or "" }}</td>
+          </tr>
+          {% if snapshot.observations %}
+            <tr class="observation-row">
+              <td colspan="7">
+                <table class="nested-table">
+                  <thead>
+                    <tr>
+                      <th>Provider</th>
+                      <th>Status</th>
+                      <th>Fetched At</th>
+                      <th>Quote Timestamp</th>
+                      <th>Price</th>
+                      <th>Error</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for observation in snapshot.observations %}
+                      <tr>
+                        <td>{{ observation.provider }}</td>
+                        <td>{{ observation.status }}</td>
+                        <td>{{ observation.fetched_at }}</td>
+                        <td>{{ observation.quote_timestamp or "n/a" }}</td>
+                        <td>{{ observation.price or "n/a" }}</td>
+                        <td>{{ observation.error_message or "" }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </td>
+            </tr>
+          {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}
+

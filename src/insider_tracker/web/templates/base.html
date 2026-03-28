@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}Insider Trading Tracker{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="masthead">
+        <div>
+          <p class="eyebrow">Private Monitor</p>
+          <h1><a href="/">Insider Trading Tracker</a></h1>
+          <p class="subhead">
+            Tracks OpenInsider purchase rows from first sighting, verifies them against SEC Form 4 XML,
+            and captures corroborated post-detection quote snapshots.
+          </p>
+        </div>
+        <div class="controls">
+          <button data-action="discovery">Run Discovery</button>
+          <button data-action="snapshots">Run Due Snapshots</button>
+        </div>
+      </header>
+      <main>
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+    <script>
+      async function postAction(url) {
+        const response = await fetch(url, { method: "POST" });
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text);
+        }
+        return response.json();
+      }
+
+      for (const button of document.querySelectorAll("[data-action]")) {
+        button.addEventListener("click", async () => {
+          button.disabled = true;
+          const original = button.textContent;
+          button.textContent = "Running...";
+          try {
+            if (button.dataset.action === "discovery") {
+              await postAction("/api/admin/run-discovery");
+            } else {
+              await postAction("/api/admin/run-due-snapshots");
+            }
+            window.location.reload();
+          } catch (error) {
+            alert(error.message);
+          } finally {
+            button.disabled = false;
+            button.textContent = original;
+          }
+        });
+      }
+
+      window.setTimeout(() => window.location.reload(), 60000);
+    </script>
+  </body>
+</html>
+

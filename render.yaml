@@ -1,0 +1,28 @@
+databases:
+  - name: insider-trading-tracker-db
+    databaseName: insider_tracker
+    user: insider_tracker
+    plan: basic-256mb
+
+services:
+  - type: web
+    name: insider-trading-tracker
+    runtime: python
+    plan: starter
+    autoDeploy: true
+    buildCommand: pip install .
+    startCommand: uvicorn insider_tracker.app:create_app --factory --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: insider-trading-tracker-db
+          property: connectionString
+      - key: HTTP_USER_AGENT
+        sync: false
+      - key: TWELVEDATA_API_KEY
+        sync: false
+      - key: FMP_API_KEY
+        sync: false

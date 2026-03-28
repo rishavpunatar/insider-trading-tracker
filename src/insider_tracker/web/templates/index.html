@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | Insider Trading Tracker{% endblock %}
+
+{% block content %}
+  <section class="card-grid">
+    <article class="summary-card">
+      <span>Tracked filings</span>
+      <strong>{{ summary.tracked_filings }}</strong>
+    </article>
+    <article class="summary-card">
+      <span>Completed filings</span>
+      <strong>{{ summary.completed_filings }}</strong>
+    </article>
+    <article class="summary-card">
+      <span>Filtered filings</span>
+      <strong>{{ summary.filtered_filings }}</strong>
+    </article>
+    <article class="summary-card">
+      <span>Pending snapshots</span>
+      <strong>{{ summary.pending_snapshots }}</strong>
+    </article>
+    <article class="summary-card">
+      <span>Disputed snapshots</span>
+      <strong>{{ summary.disputed_snapshots }}</strong>
+    </article>
+  </section>
+
+  <section class="note">
+    <p>
+      `site_seen` is the first time this app observed the OpenInsider row. It is not a historical timestamp published by OpenInsider itself.
+    </p>
+  </section>
+
+  <section class="table-card">
+    <table>
+      <thead>
+        <tr>
+          <th>Symbol</th>
+          <th>Company</th>
+          <th>Insider</th>
+          <th>Trade Price</th>
+          <th>Trade Date</th>
+          <th>First Seen</th>
+          <th>Tracking</th>
+          <th>Verification</th>
+          <th>Eligibility</th>
+          <th>Latest Snapshot</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for filing in filings %}
+          <tr>
+            <td><a href="/filings/{{ filing.id }}">{{ filing.symbol }}</a></td>
+            <td>{{ filing.company_name }}</td>
+            <td>
+              {{ filing.insider_name }}
+              <div class="muted">{{ filing.insider_title or "" }}</div>
+            </td>
+            <td>{{ filing.transaction_price or "n/a" }}</td>
+            <td>{{ filing.trade_date or "n/a" }}</td>
+            <td>{{ filing.first_seen_at }}</td>
+            <td><span class="pill">{{ filing.tracking_status }}</span></td>
+            <td><span class="pill">{{ filing.sec_verification_status }}</span></td>
+            <td><span class="pill">{{ filing.security_status }}</span></td>
+            <td><span class="pill">{{ filing.latest_snapshot_status or "n/a" }}</span></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}
+
