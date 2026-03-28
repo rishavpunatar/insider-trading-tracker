@@ -2,6 +2,8 @@
 
 Private web app that monitors OpenInsider's latest insider purchases feed, records the first time a filing appears there, verifies the filing against the SEC ownership XML, and tracks post-detection stock prices at fixed intervals.
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rishavpunatar/insider-trading-tracker)
+
 ## What It Does
 
 - Polls `http://openinsider.com/latest-insider-purchases-25k`
